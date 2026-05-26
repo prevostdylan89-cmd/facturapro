@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Building2, FileText, Upload, Check, AlertCircle } from 'lucide-react'
+import { Building2, FileText, Upload, Check, AlertCircle, Hash } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { supabase } from '../lib/supabase'
 import Input from '../components/ui/Input'
@@ -35,6 +35,11 @@ export default function Settings() {
 
   const [settingsForm, setSettingsForm] = useState({
     prefix: 'FAC',
+    next_invoice_number: 1,
+    quote_prefix: 'DEV',
+    next_quote_number: 1,
+    credit_note_prefix: 'AV',
+    next_credit_note_number: 1,
     payment_terms: '30 jours net',
     late_fees:
       "En cas de retard de paiement, des pénalités de retard au taux de 3 fois le taux d'intérêt légal seront appliquées.",
@@ -80,6 +85,11 @@ export default function Settings() {
         if (data) {
           setSettingsForm({
             prefix: data.prefix || 'FAC',
+            next_invoice_number: data.next_invoice_number ?? 1,
+            quote_prefix: data.quote_prefix || 'DEV',
+            next_quote_number: data.next_quote_number ?? 1,
+            credit_note_prefix: data.credit_note_prefix || 'AV',
+            next_credit_note_number: data.next_credit_note_number ?? 1,
             payment_terms: data.payment_terms || '30 jours net',
             late_fees: data.late_fees || '',
             bank_details: data.bank_details || '',
@@ -91,6 +101,7 @@ export default function Settings() {
 
   const setP = (field) => (e) => setProfileForm((prev) => ({ ...prev, [field]: e.target.value }))
   const setS = (field) => (e) => setSettingsForm((prev) => ({ ...prev, [field]: e.target.value }))
+  const setSNum = (field) => (e) => setSettingsForm((prev) => ({ ...prev, [field]: parseInt(e.target.value, 10) || 1 }))
 
   const handleLogoChange = (e) => {
     const file = e.target.files[0]
@@ -242,19 +253,91 @@ export default function Settings() {
       {/* Invoice settings */}
       <Section title="Paramètres de facturation" icon={FileText}>
         <form onSubmit={handleSaveSettings} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <Input
-              label="Préfixe des factures"
-              value={settingsForm.prefix}
-              onChange={setS('prefix')}
-              placeholder="FAC"
-            />
-            <Input
-              label="Délai de paiement par défaut"
-              value={settingsForm.payment_terms}
-              onChange={setS('payment_terms')}
-              placeholder="30 jours net"
-            />
+
+          {/* Numérotation factures */}
+          <div>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Factures</p>
+            <div className="grid grid-cols-2 gap-4">
+              <Input
+                label="Préfixe"
+                value={settingsForm.prefix}
+                onChange={setS('prefix')}
+                placeholder="FAC"
+              />
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Prochain numéro</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={settingsForm.next_invoice_number}
+                  onChange={setSNum('next_invoice_number')}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+            </div>
+            <p className="text-xs text-gray-400 mt-1">
+              Exemple : {settingsForm.prefix || 'FAC'}-{new Date().getFullYear()}-{String(settingsForm.next_invoice_number || 1).padStart(3, '0')}
+            </p>
+          </div>
+
+          {/* Numérotation devis */}
+          <div>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Devis</p>
+            <div className="grid grid-cols-2 gap-4">
+              <Input
+                label="Préfixe"
+                value={settingsForm.quote_prefix}
+                onChange={setS('quote_prefix')}
+                placeholder="DEV"
+              />
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Prochain numéro</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={settingsForm.next_quote_number}
+                  onChange={setSNum('next_quote_number')}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+            </div>
+            <p className="text-xs text-gray-400 mt-1">
+              Exemple : {settingsForm.quote_prefix || 'DEV'}-{new Date().getFullYear()}-{String(settingsForm.next_quote_number || 1).padStart(3, '0')}
+            </p>
+          </div>
+
+          {/* Numérotation avoirs */}
+          <div>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Avoirs</p>
+            <div className="grid grid-cols-2 gap-4">
+              <Input
+                label="Préfixe"
+                value={settingsForm.credit_note_prefix}
+                onChange={setS('credit_note_prefix')}
+                placeholder="AV"
+              />
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Prochain numéro</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={settingsForm.next_credit_note_number}
+                  onChange={setSNum('next_credit_note_number')}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="border-t border-gray-100 pt-4">
+            <div className="grid grid-cols-2 gap-4">
+              <Input
+                label="Délai de paiement par défaut"
+                value={settingsForm.payment_terms}
+                onChange={setS('payment_terms')}
+                placeholder="30 jours net"
+              />
+            </div>
           </div>
 
           <div>

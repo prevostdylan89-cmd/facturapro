@@ -48,9 +48,30 @@ export const STATUS_COLORS = {
   overdue: 'red',
 }
 
+export const QUOTE_STATUS_LABELS = {
+  draft: 'Brouillon',
+  sent: 'Envoyé',
+  accepted: 'Accepté',
+  refused: 'Refusé',
+}
+
+export const QUOTE_STATUS_COLORS = {
+  draft: 'gray',
+  sent: 'blue',
+  accepted: 'green',
+  refused: 'red',
+}
+
+export const DOC_TYPE_LABELS = {
+  invoice: 'Facture',
+  quote: 'Devis',
+  credit_note: 'Avoir',
+}
+
 export function getEffectiveStatus(invoice) {
   if (invoice.status === 'paid' || invoice.status === 'draft') return invoice.status
-  if (invoice.status === 'sent' && invoice.due_date) {
+  if (invoice.status === 'accepted' || invoice.status === 'refused') return invoice.status
+  if (invoice.status === 'sent' && invoice.due_date && invoice.type !== 'quote') {
     if (new Date(invoice.due_date) < new Date()) return 'overdue'
   }
   return invoice.status
@@ -73,4 +94,31 @@ export function getLast6Months() {
     })
   }
   return months
+}
+
+export function exportToCSV(invoices, filename = 'factures.csv') {
+  const headers = ['Numéro', 'Type', 'Client', 'Date émission', 'Échéance', 'Statut', 'HT', 'TVA', 'TTC']
+  const rows = invoices.map((inv) => [
+    inv.invoice_number || '',
+    DOC_TYPE_LABELS[inv.type] || 'Facture',
+    inv.clients?.name || inv.client_name || '',
+    inv.issue_date || '',
+    inv.due_date || '',
+    STATUS_LABELS[getEffectiveStatus(inv)] || inv.status || '',
+    Number(inv.subtotal || 0).toFixed(2),
+    Number(inv.tva_amount || 0).toFixed(2),
+    Number(inv.total || 0).toFixed(2),
+  ])
+
+  const csv = [headers, ...rows]
+    .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(';'))
+    .join('\n')
+
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
 }

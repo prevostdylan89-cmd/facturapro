@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { ArrowLeft, Eye, EyeOff } from 'lucide-react'
 import InvoiceForm from '../components/invoice/InvoiceForm'
 import InvoicePreview from '../components/invoice/InvoicePreview'
@@ -11,9 +11,15 @@ import { supabase } from '../lib/supabase'
 export default function NewInvoice() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
   const { user, profile } = useAuth()
   const { clients } = useClients()
-  const { createInvoice, updateInvoice } = useInvoices()
+
+  // Determine doc type from route
+  const isQuoteRoute = location.pathname.startsWith('/quotes')
+  const docType = isQuoteRoute ? 'quote' : 'invoice'
+
+  const { createInvoice, updateInvoice, createQuote } = useInvoices(docType)
 
   const [initialData, setInitialData] = useState(null)
   const [initialItems, setInitialItems] = useState([])
@@ -23,7 +29,6 @@ export default function NewInvoice() {
   const [error, setError] = useState('')
   const [showPreview, setShowPreview] = useState(true)
 
-  // For live preview
   const [previewData, setPreviewData] = useState({})
   const [previewItems, setPreviewItems] = useState([])
 
@@ -46,7 +51,7 @@ export default function NewInvoice() {
       .single()
       .then(({ data, error: err }) => {
         if (err || !data) {
-          setError('Facture introuvable')
+          setError('Document introuvable')
         } else {
           const { invoice_items, ...invoice } = data
           setInitialData(invoice)
@@ -64,7 +69,7 @@ export default function NewInvoice() {
     setError('')
     setSaving(true)
 
-    const invoicePayload = {
+    const payload = {
       client_id: formData.client_id || null,
       issue_date: formData.issue_date,
       due_date: formData.due_date || null,
@@ -83,18 +88,26 @@ export default function NewInvoice() {
       total: Number(item.quantity) * Number(item.unit_price),
     }))
 
-    const { error: err } = id
-      ? await updateInvoice(id, invoicePayload, itemsPayload)
-      : await createInvoice(invoicePayload, itemsPayload)
+    let result
+    if (id) {
+      result = await updateInvoice(id, payload, itemsPayload)
+    } else if (docType === 'quote') {
+      result = await createQuote(payload, itemsPayload)
+    } else {
+      result = await createInvoice(payload, itemsPayload)
+    }
 
     setSaving(false)
 
-    if (err) {
-      setError(err.message || 'Une erreur est survenue')
+    if (result.error) {
+      setError(result.error.message || 'Une erreur est survenue')
     } else {
-      navigate('/invoices')
+      navigate(docType === 'quote' ? '/quotes' : '/invoices')
     }
   }
+
+  const backPath = docType === 'quote' ? '/quotes' : '/invoices'
+  const docLabel = docType === 'quote' ? 'devis' : 'facture'
 
   if (loading) {
     return (
@@ -110,14 +123,14 @@ export default function NewInvoice() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <button
-            onClick={() => navigate('/invoices')}
+            onClick={() => navigate(backPath)}
             className="p-2 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
           >
             <ArrowLeft size={18} />
           </button>
           <div>
             <h1 className="text-xl font-bold text-gray-900">
-              {id ? 'Modifier la facture' : 'Nouvelle facture'}
+              {id ? `Modifier le ${docLabel}` : `Nouveau ${docLabel}`}
             </h1>
             {id && initialData?.invoice_number && (
               <p className="text-sm text-gray-500">{initialData.invoice_number}</p>
@@ -143,12 +156,13 @@ export default function NewInvoice() {
         {/* Form */}
         <div className="bg-white rounded-xl border border-gray-200 p-6">
           <h2 className="text-sm font-semibold text-gray-700 mb-5 pb-3 border-b border-gray-100">
-            Informations de la facture
+            {docType === 'quote' ? 'Informations du devis' : 'Informations de la facture'}
           </h2>
           <InvoiceForm
             initialData={initialData}
             initialItems={initialItems}
             clients={clients}
+            docType={docType}
             onSubmit={(data, items) => {
               setPreviewData(data)
               setPreviewItems(items)

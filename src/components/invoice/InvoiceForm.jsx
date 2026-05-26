@@ -15,7 +15,8 @@ function newItem() {
   return { id: Date.now(), description: '', quantity: 1, unit_price: 0 }
 }
 
-export default function InvoiceForm({ initialData, initialItems, clients, onSubmit, saving }) {
+export default function InvoiceForm({ initialData, initialItems, clients, onSubmit, saving, docType = 'invoice' }) {
+  const isQuote = docType === 'quote'
   const today = new Date().toISOString().split('T')[0]
 
   const [form, setForm] = useState({
@@ -110,7 +111,7 @@ export default function InvoiceForm({ initialData, initialItems, clients, onSubm
       {/* Dates */}
       <div className="grid grid-cols-2 gap-4">
         <Input
-          label="Date d'émission"
+          label={isQuote ? "Date d'émission" : "Date d'émission"}
           type="date"
           value={form.issue_date}
           onChange={set('issue_date')}
@@ -118,7 +119,7 @@ export default function InvoiceForm({ initialData, initialItems, clients, onSubm
           required
         />
         <Input
-          label="Date d'échéance"
+          label={isQuote ? "Date de validité" : "Date d'échéance"}
           type="date"
           value={form.due_date}
           onChange={set('due_date')}
@@ -253,10 +254,10 @@ export default function InvoiceForm({ initialData, initialItems, clients, onSubm
       {/* Actions */}
       <div className="flex gap-3 pt-2 border-t border-gray-100">
         <Button variant="secondary" onClick={() => handleSubmit('draft')} loading={saving}>
-          Enregistrer brouillon
+          {isQuote ? 'Enregistrer brouillon' : 'Enregistrer brouillon'}
         </Button>
         <Button onClick={() => handleSubmit('sent')} loading={saving}>
-          Marquer comme envoyée
+          {isQuote ? 'Marquer comme envoyé' : 'Marquer comme envoyée'}
         </Button>
       </div>
     </div>

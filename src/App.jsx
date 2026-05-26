@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from './hooks/useAuth'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Invoices from './pages/Invoices'
+import Quotes from './pages/Quotes'
 import NewInvoice from './pages/NewInvoice'
 import Clients from './pages/Clients'
 import Settings from './pages/Settings'
@@ -58,6 +59,9 @@ export default function App() {
             <Route path="invoices" element={<Invoices />} />
             <Route path="invoices/new" element={<NewInvoice />} />
             <Route path="invoices/:id/edit" element={<NewInvoice />} />
+            <Route path="quotes" element={<Quotes />} />
+            <Route path="quotes/new" element={<NewInvoice />} />
+            <Route path="quotes/:id/edit" element={<NewInvoice />} />
             <Route path="clients" element={<Clients />} />
             <Route path="settings" element={<Settings />} />
           </Route>

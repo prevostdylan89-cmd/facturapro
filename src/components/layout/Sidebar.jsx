@@ -1,9 +1,10 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, FileText, Users, Settings, Receipt, X } from 'lucide-react'
+import { LayoutDashboard, FileText, Users, Settings, Receipt, X, ClipboardList } from 'lucide-react'
 
 const navItems = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Tableau de bord' },
   { to: '/invoices', icon: FileText, label: 'Factures' },
+  { to: '/quotes', icon: ClipboardList, label: 'Devis' },
   { to: '/clients', icon: Users, label: 'Clients' },
   { to: '/settings', icon: Settings, label: 'Paramètres' },
 ]
@@ -65,7 +66,7 @@ export default function Sidebar({ isOpen, onClose }) {
         </nav>
 
         <div className="p-4 border-t border-gray-700/60">
-          <p className="text-xs text-gray-500 text-center">FacturaPro · v1.0</p>
+          <p className="text-xs text-gray-500 text-center">FacturaPro · v1.1</p>
         </div>
       </aside>
     </>

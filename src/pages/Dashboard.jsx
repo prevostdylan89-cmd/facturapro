@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { TrendingUp, FileText, Clock, CheckCircle, AlertTriangle, Plus, ArrowRight } from 'lucide-react'
+import { TrendingUp, FileText, Clock, CheckCircle, AlertTriangle, Plus, ArrowRight, AlertCircle } from 'lucide-react'
 import { useInvoices } from '../hooks/useInvoices'
 import { useAuth } from '../hooks/useAuth'
 import Badge from '../components/ui/Badge'
@@ -85,6 +85,33 @@ function BarChart({ data }) {
   )
 }
 
+function ProfileBanner({ profile, onGoToSettings }) {
+  const missing = []
+  if (!profile?.company_name && !profile?.full_name) missing.push('nom / raison sociale')
+  if (!profile?.address) missing.push('adresse')
+  if (!profile?.siret) missing.push('SIRET')
+
+  if (missing.length === 0) return null
+
+  return (
+    <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4">
+      <AlertCircle size={18} className="text-amber-500 mt-0.5 flex-shrink-0" />
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium text-amber-800">Profil incomplet</p>
+        <p className="text-xs text-amber-600 mt-0.5">
+          Champs manquants sur vos PDF : {missing.join(', ')}.
+        </p>
+      </div>
+      <button
+        onClick={onGoToSettings}
+        className="text-xs font-medium text-amber-700 hover:text-amber-900 whitespace-nowrap underline"
+      >
+        Compléter →
+      </button>
+    </div>
+  )
+}
+
 export default function Dashboard() {
   const { invoices, loading } = useInvoices()
   const { profile } = useAuth()
@@ -146,6 +173,9 @@ export default function Dashboard() {
           Nouvelle facture
         </Button>
       </div>
+
+      {/* Profile incomplete banner */}
+      <ProfileBanner profile={profile} onGoToSettings={() => navigate('/settings')} />
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

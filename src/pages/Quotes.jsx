@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Search, Filter, Download, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Plus, Search, Filter, Download, ChevronLeft, ChevronRight, ArrowRightCircle } from 'lucide-react'
 import { useInvoices } from '../hooks/useInvoices'
 import { useAuth } from '../hooks/useAuth'
 import InvoiceCard from '../components/invoice/InvoiceCard'
@@ -12,16 +12,16 @@ import { supabase } from '../lib/supabase'
 const STATUS_FILTERS = [
   { value: '', label: 'Tous' },
   { value: 'draft', label: 'Brouillon' },
-  { value: 'sent', label: 'Envoyée' },
-  { value: 'paid', label: 'Payée' },
-  { value: 'overdue', label: 'En retard' },
+  { value: 'sent', label: 'Envoyé' },
+  { value: 'accepted', label: 'Accepté' },
+  { value: 'refused', label: 'Refusé' },
 ]
 
 const PAGE_SIZE = 10
 
-export default function Invoices() {
+export default function Quotes() {
   const navigate = useNavigate()
-  const { invoices, loading, deleteInvoice, duplicateInvoice, updateStatus, createCreditNote } = useInvoices('invoice')
+  const { invoices: quotes, loading, deleteInvoice, duplicateInvoice, updateStatus, convertQuoteToInvoice } = useInvoices('quote')
   const { profile } = useAuth()
 
   const [search, setSearch] = useState('')
@@ -30,7 +30,7 @@ export default function Invoices() {
   const [page, setPage] = useState(1)
 
   const handleDelete = async (id) => {
-    if (!confirm('Supprimer cette facture ? Cette action est irréversible.')) return
+    if (!confirm('Supprimer ce devis ? Cette action est irréversible.')) return
     await deleteInvoice(id)
   }
 
@@ -45,44 +45,45 @@ export default function Invoices() {
     await updateStatus(id, status)
   }
 
-  const handleCreditNote = async (id) => {
-    if (!confirm('Créer un avoir pour cette facture ?')) return
+  const handleConvert = async (id) => {
+    if (!confirm('Convertir ce devis en facture ?')) return
     setActionLoading(true)
-    const { error } = await createCreditNote(id)
+    const { error, data } = await convertQuoteToInvoice(id)
     if (error) alert(`Erreur : ${error.message || error}`)
+    else navigate(`/invoices/${data.id}/edit`)
     setActionLoading(false)
   }
 
-  const handleDownload = async (invoice) => {
+  const handleDownload = async (quote) => {
     try {
       const { data: items } = await supabase
         .from('invoice_items')
         .select('*')
-        .eq('invoice_id', invoice.id)
+        .eq('invoice_id', quote.id)
 
-      const { data: client } = invoice.client_id
-        ? await supabase.from('clients').select('*').eq('id', invoice.client_id).single()
+      const { data: client } = quote.client_id
+        ? await supabase.from('clients').select('*').eq('id', quote.client_id).single()
         : { data: null }
 
       const { data: settings } = await supabase
         .from('invoice_settings')
         .select('*')
-        .eq('user_id', invoice.user_id)
+        .eq('user_id', quote.user_id)
         .single()
 
-      const doc = generateInvoicePDF(invoice, items || [], client, profile, settings)
-      downloadPDF(doc, invoice)
+      const doc = generateInvoicePDF(quote, items || [], client, profile, settings)
+      downloadPDF(doc, quote)
     } catch (e) {
       alert('Erreur lors de la génération du PDF')
     }
   }
 
-  const filtered = invoices.filter((inv) => {
-    const effectiveStatus = getEffectiveStatus(inv)
+  const filtered = quotes.filter((q) => {
+    const effectiveStatus = getEffectiveStatus(q)
     const matchSearch =
       !search ||
-      inv.invoice_number?.toLowerCase().includes(search.toLowerCase()) ||
-      inv.clients?.name?.toLowerCase().includes(search.toLowerCase())
+      q.invoice_number?.toLowerCase().includes(search.toLowerCase()) ||
+      q.clients?.name?.toLowerCase().includes(search.toLowerCase())
     const matchStatus = !statusFilter || effectiveStatus === statusFilter
     return matchSearch && matchStatus
   })
@@ -99,21 +100,21 @@ export default function Invoices() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Factures</h1>
-          <p className="text-sm text-gray-500">{filtered.length} facture{filtered.length !== 1 ? 's' : ''}</p>
+          <h1 className="text-xl font-bold text-gray-900">Devis</h1>
+          <p className="text-sm text-gray-500">{filtered.length} devis</p>
         </div>
         <div className="flex items-center gap-2">
           {filtered.length > 0 && (
             <button
-              onClick={() => exportToCSV(filtered, 'factures.csv')}
+              onClick={() => exportToCSV(filtered, 'devis.csv')}
               className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
             >
               <Download size={14} /> CSV
             </button>
           )}
-          <Button onClick={() => navigate('/invoices/new')}>
+          <Button onClick={() => navigate('/quotes/new')}>
             <Plus size={16} className="mr-1.5" />
-            Nouvelle facture
+            Nouveau devis
           </Button>
         </div>
       </div>
@@ -157,19 +158,19 @@ export default function Invoices() {
         </div>
       ) : paginated.length === 0 ? (
         <div className="text-center py-16 text-gray-400 text-sm bg-white rounded-xl border border-gray-200">
-          Aucune facture trouvée
+          Aucun devis trouvé
         </div>
       ) : (
         <div className="space-y-3">
-          {paginated.map((inv) => (
+          {paginated.map((q) => (
             <InvoiceCard
-              key={inv.id}
-              invoice={inv}
+              key={q.id}
+              invoice={q}
               onDelete={handleDelete}
               onDuplicate={handleDuplicate}
               onStatusChange={handleStatusChange}
               onDownload={handleDownload}
-              onCreateCreditNote={handleCreditNote}
+              onConvertToInvoice={handleConvert}
             />
           ))}
         </div>
