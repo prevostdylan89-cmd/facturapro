@@ -6,6 +6,14 @@ export function formatCurrency(amount) {
   }).format(amount || 0)
 }
 
+// Version sans espaces insécables pour jsPDF (qui les rend en "/")
+export function formatCurrencyPDF(amount) {
+  const num = Number(amount || 0)
+  const [int, dec] = num.toFixed(2).split('.')
+  const intFormatted = int.replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
+  return `${intFormatted},${dec} EUR`
+}
+
 export function formatDate(dateString) {
   if (!dateString) return '—'
   return new Intl.DateTimeFormat('fr-FR').format(new Date(dateString))

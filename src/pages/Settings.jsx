@@ -130,8 +130,7 @@ export default function Settings() {
 
     const { error } = await supabase
       .from('profiles')
-      .update({ ...profileForm, logo_url })
-      .eq('id', user.id)
+      .upsert({ id: user.id, ...profileForm, logo_url })
 
     setSaving(false)
     if (error) showMsg('error', 'Erreur : ' + error.message)
