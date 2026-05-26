@@ -9,6 +9,8 @@ export default function ClientForm({ initialData, onSubmit, saving }) {
     phone: '',
     address: '',
     siret: '',
+    tva_number: '',
+    delivery_address: '',
   })
   const [errors, setErrors] = useState({})
 
@@ -58,8 +60,9 @@ export default function ClientForm({ initialData, onSubmit, saving }) {
           placeholder="+33 6 00 00 00 00"
         />
       </div>
+
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Adresse</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Adresse de facturation</label>
         <textarea
           value={form.address}
           onChange={set('address')}
@@ -68,12 +71,34 @@ export default function ClientForm({ initialData, onSubmit, saving }) {
           className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
         />
       </div>
-      <Input
-        label="SIRET"
-        value={form.siret}
-        onChange={set('siret')}
-        placeholder="123 456 789 00012"
-      />
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Adresse de livraison <span className="text-gray-400 font-normal">(si différente)</span>
+        </label>
+        <textarea
+          value={form.delivery_address}
+          onChange={set('delivery_address')}
+          rows={2}
+          placeholder="Laisser vide si identique à l'adresse de facturation"
+          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <Input
+          label="SIRET"
+          value={form.siret}
+          onChange={set('siret')}
+          placeholder="123 456 789 00012"
+        />
+        <Input
+          label="N° TVA intracommunautaire"
+          value={form.tva_number}
+          onChange={set('tva_number')}
+          placeholder="FR 00 123456789"
+        />
+      </div>
 
       <div className="flex justify-end gap-3 pt-2">
         <Button type="submit" loading={saving}>

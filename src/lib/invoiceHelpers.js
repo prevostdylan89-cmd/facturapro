@@ -24,14 +24,19 @@ export function formatDateShort(dateString) {
   return new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: 'short' }).format(new Date(dateString))
 }
 
-export function calculateTotals(items, tvaRate) {
-  const subtotal = items.reduce(
-    (sum, item) => sum + Number(item.quantity || 0) * Number(item.unit_price || 0),
-    0
-  )
+export function calculateTotals(items, tvaRate, remiseGlobale = 0) {
+  const subtotalBrut = items.reduce((sum, item) => {
+    const lineTotal = Number(item.quantity || 0) * Number(item.unit_price || 0)
+    const remiseLine = Number(item.remise || 0)
+    return sum + lineTotal * (1 - remiseLine / 100)
+  }, 0)
+
+  const remiseGlobaleAmount = subtotalBrut * (Number(remiseGlobale || 0) / 100)
+  const subtotal = subtotalBrut - remiseGlobaleAmount
   const tvaAmount = subtotal * (Number(tvaRate || 0) / 100)
   const total = subtotal + tvaAmount
-  return { subtotal, tvaAmount, total }
+
+  return { subtotalBrut, remiseGlobaleAmount, subtotal, tvaAmount, total }
 }
 
 export const STATUS_LABELS = {
@@ -67,6 +72,14 @@ export const DOC_TYPE_LABELS = {
   quote: 'Devis',
   credit_note: 'Avoir',
 }
+
+export const PAYMENT_METHODS = [
+  { value: 'virement', label: 'Virement bancaire' },
+  { value: 'cheque', label: 'Chèque' },
+  { value: 'carte', label: 'Carte bancaire' },
+  { value: 'especes', label: 'Espèces' },
+  { value: 'prelevement', label: 'Prélèvement' },
+]
 
 export function getEffectiveStatus(invoice) {
   if (invoice.status === 'paid' || invoice.status === 'draft') return invoice.status

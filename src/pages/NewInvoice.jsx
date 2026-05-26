@@ -69,6 +69,7 @@ export default function NewInvoice() {
     setError('')
     setSaving(true)
 
+    const remiseGlobale = Number(formData.remise_globale || 0)
     const payload = {
       client_id: formData.client_id || null,
       issue_date: formData.issue_date,
@@ -76,17 +77,25 @@ export default function NewInvoice() {
       tva_rate: formData.tva_rate,
       status: formData.status,
       notes: formData.notes || null,
+      po_number: formData.po_number || null,
+      payment_method: formData.payment_method || 'virement',
+      remise_globale: remiseGlobale,
       subtotal: formData.subtotal,
       tva_amount: formData.tva_amount,
       total: formData.total,
     }
 
-    const itemsPayload = items.map((item) => ({
-      description: item.description,
-      quantity: Number(item.quantity),
-      unit_price: Number(item.unit_price),
-      total: Number(item.quantity) * Number(item.unit_price),
-    }))
+    const itemsPayload = items.map((item) => {
+      const lineTotal = Number(item.quantity) * Number(item.unit_price)
+      const remisePct = Number(item.remise || 0)
+      return {
+        description: item.description,
+        quantity: Number(item.quantity),
+        unit_price: Number(item.unit_price),
+        remise: remisePct,
+        total: lineTotal * (1 - remisePct / 100),
+      }
+    })
 
     let result
     if (id) {

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Building2, FileText, Upload, Check, AlertCircle, Hash } from 'lucide-react'
+import { Building2, FileText, Upload, Check, AlertCircle, Scale } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { supabase } from '../lib/supabase'
 import Input from '../components/ui/Input'
@@ -31,6 +31,12 @@ export default function Settings() {
     siret: '',
     tva_number: '',
     iban: '',
+    legal_form: '',
+    capital_social: '',
+    rcs_city: '',
+    rcs_number: '',
+    is_auto_entrepreneur: false,
+    insurance_mention: '',
   })
 
   const [settingsForm, setSettingsForm] = useState({
@@ -70,6 +76,12 @@ export default function Settings() {
         siret: profile.siret || '',
         tva_number: profile.tva_number || '',
         iban: profile.iban || '',
+        legal_form: profile.legal_form || '',
+        capital_social: profile.capital_social || '',
+        rcs_city: profile.rcs_city || '',
+        rcs_number: profile.rcs_number || '',
+        is_auto_entrepreneur: profile.is_auto_entrepreneur || false,
+        insurance_mention: profile.insurance_mention || '',
       })
       if (profile.logo_url) setLogoPreview(profile.logo_url)
     }
@@ -241,6 +253,80 @@ export default function Settings() {
           </div>
 
           <Input label="IBAN" value={profileForm.iban} onChange={setP('iban')} placeholder="FR76 3000 6000 0112 3456 7890 189" />
+
+          {/* Statut juridique */}
+          <div className="border-t border-gray-100 pt-4">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Mentions légales</p>
+
+            {/* Auto-entrepreneur toggle */}
+            <label className="flex items-center gap-3 cursor-pointer mb-4">
+              <div className="relative">
+                <input
+                  type="checkbox"
+                  checked={profileForm.is_auto_entrepreneur}
+                  onChange={(e) => setProfileForm((prev) => ({ ...prev, is_auto_entrepreneur: e.target.checked }))}
+                  className="sr-only"
+                />
+                <div className={`w-10 h-5 rounded-full transition-colors ${profileForm.is_auto_entrepreneur ? 'bg-indigo-600' : 'bg-gray-300'}`} />
+                <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${profileForm.is_auto_entrepreneur ? 'translate-x-5' : ''}`} />
+              </div>
+              <span className="text-sm font-medium text-gray-700">Auto-entrepreneur / Micro-entreprise</span>
+            </label>
+
+            {profileForm.is_auto_entrepreneur && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
+                <p className="text-xs text-amber-700">
+                  La mention <strong>"TVA non applicable, art. 293 B du CGI"</strong> sera automatiquement ajoutée sur vos PDF.
+                </p>
+              </div>
+            )}
+
+            {!profileForm.is_auto_entrepreneur && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <Input
+                    label="Forme juridique"
+                    value={profileForm.legal_form}
+                    onChange={setP('legal_form')}
+                    placeholder="SARL, SAS, EURL…"
+                  />
+                  <Input
+                    label="Capital social (€)"
+                    value={profileForm.capital_social}
+                    onChange={setP('capital_social')}
+                    placeholder="10 000"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <Input
+                    label="Ville RCS"
+                    value={profileForm.rcs_city}
+                    onChange={setP('rcs_city')}
+                    placeholder="Paris"
+                  />
+                  <Input
+                    label="N° RCS"
+                    value={profileForm.rcs_number}
+                    onChange={setP('rcs_number')}
+                    placeholder="123 456 789"
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="mt-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Mention assurance RC Pro (optionnel)
+              </label>
+              <textarea
+                value={profileForm.insurance_mention}
+                onChange={setP('insurance_mention')}
+                rows={2}
+                placeholder="Assurance RC Pro : Allianz n° 123456 — Zone : France entière"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+              />
+            </div>
+          </div>
 
           <div className="flex justify-end pt-2">
             <Button type="submit" loading={saving}>

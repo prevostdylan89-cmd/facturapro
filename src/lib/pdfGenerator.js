@@ -12,11 +12,14 @@ const PAGE_W  = 210
 const MARGIN  = 15
 
 // Zone utile = 210 - 15 - 15 = 180 mm
-// Colonnes   = 100 + 15 + 33 + 32 = 180 mm
-const COL = { desc: 100, qty: 15, pu: 33, total: 32 }
+// Colonnes avec remise = 85 + 13 + 14 + 30 + 6 + 32 = 180 mm
+// Colonnes sans remise = 100 + 15 + 33 + 32 = 180 mm
 
 export function generateInvoicePDF(invoice, items, client, profile, settings) {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+  const isAutoEntrepreneur = profile?.is_auto_entrepreneur === true
+  const hasRemise = items.some((i) => Number(i.remise || 0) > 0) || Number(invoice.remise_globale || 0) > 0
+  const docLabel = invoice.type === 'quote' ? 'DEVIS' : invoice.type === 'credit_note' ? 'AVOIR' : 'FACTURE'
 
   // ── HEADER ─────────────────────────────────────────────
   doc.setFillColor(...PRIMARY)
@@ -25,7 +28,7 @@ export function generateInvoicePDF(invoice, items, client, profile, settings) {
   doc.setTextColor(...WHITE)
   doc.setFontSize(18)
   doc.setFont('helvetica', 'bold')
-  doc.text(profile?.company_name || 'Mon Entreprise', MARGIN, 18)
+  doc.text(profile?.company_name || profile?.full_name || 'Mon Entreprise', MARGIN, 18)
 
   if (profile?.address) {
     doc.setFontSize(8)
@@ -37,27 +40,33 @@ export function generateInvoicePDF(invoice, items, client, profile, settings) {
     doc.text(profile.email, MARGIN, 34)
   }
 
-  // Numéro de facture (droite)
+  // Type de document (droite)
   doc.setFontSize(8)
   doc.setFont('helvetica', 'normal')
-  doc.text('FACTURE', PAGE_W - MARGIN, 16, { align: 'right' })
+  doc.text(docLabel, PAGE_W - MARGIN, 16, { align: 'right' })
   doc.setFontSize(14)
   doc.setFont('helvetica', 'bold')
   doc.text(invoice.invoice_number || '', PAGE_W - MARGIN, 26, { align: 'right' })
+  if (invoice.po_number) {
+    doc.setFontSize(7.5)
+    doc.setFont('helvetica', 'normal')
+    doc.text(`Réf. client : ${invoice.po_number}`, PAGE_W - MARGIN, 35, { align: 'right' })
+  }
 
   // ── BLOC DATES (droite) ────────────────────────────────
   const boxX = PAGE_W - MARGIN - 58
+  const dateBoxH = invoice.type === 'quote' ? 33 : 33
   doc.setFillColor(...LIGHT)
-  doc.roundedRect(boxX, 49, 58, 33, 2, 2, 'F')
+  doc.roundedRect(boxX, 49, 58, dateBoxH, 2, 2, 'F')
   doc.setDrawColor(...BORDER)
   doc.setLineWidth(0.2)
-  doc.roundedRect(boxX, 49, 58, 33, 2, 2, 'S')
+  doc.roundedRect(boxX, 49, 58, dateBoxH, 2, 2, 'S')
 
   doc.setFontSize(7.5)
   doc.setFont('helvetica', 'normal')
   doc.setTextColor(...GRAY)
   doc.text("Date d'émission :", boxX + 4, 58)
-  doc.text("Date d'échéance :", boxX + 4, 66)
+  doc.text(invoice.type === 'quote' ? 'Validité jusqu\'au :' : "Date d'échéance :", boxX + 4, 66)
   doc.text('Statut :', boxX + 4, 74)
 
   doc.setTextColor(...DARK)
@@ -65,7 +74,10 @@ export function generateInvoicePDF(invoice, items, client, profile, settings) {
   doc.text(formatDate(invoice.issue_date), boxX + 54, 58, { align: 'right' })
   doc.text(formatDate(invoice.due_date) || 'N/A', boxX + 54, 66, { align: 'right' })
 
-  const statusLabels = { draft: 'Brouillon', sent: 'Envoyée', paid: 'Payée', overdue: 'En retard' }
+  const statusLabels = {
+    draft: 'Brouillon', sent: invoice.type === 'quote' ? 'Envoyé' : 'Envoyée',
+    paid: 'Payée', overdue: 'En retard', accepted: 'Accepté', refused: 'Refusé',
+  }
   doc.text(statusLabels[invoice.status] || invoice.status, boxX + 54, 74, { align: 'right' })
 
   // ── INFOS ÉMETTEUR (gauche) ────────────────────────────
@@ -84,7 +96,23 @@ export function generateInvoicePDF(invoice, items, client, profile, settings) {
   }
   if (profile?.phone) { doc.text(`Tél : ${profile.phone}`, MARGIN, yPos); yPos += 4.5 }
   if (profile?.siret) { doc.text(`SIRET : ${profile.siret}`, MARGIN, yPos); yPos += 4.5 }
-  if (profile?.tva_number) { doc.text(`N° TVA : ${profile.tva_number}`, MARGIN, yPos); yPos += 4.5 }
+  if (profile?.tva_number && !isAutoEntrepreneur) {
+    doc.text(`N° TVA : ${profile.tva_number}`, MARGIN, yPos); yPos += 4.5
+  }
+
+  // Mentions légales société (forme juridique, RCS, capital)
+  const legalParts = []
+  if (profile?.legal_form) legalParts.push(profile.legal_form)
+  if (profile?.capital_social) legalParts.push(`Capital ${profile.capital_social} €`)
+  if (profile?.rcs_city && profile?.rcs_number) legalParts.push(`RCS ${profile.rcs_city} ${profile.rcs_number}`)
+  else if (profile?.rcs_city) legalParts.push(`RCS ${profile.rcs_city}`)
+  if (legalParts.length > 0) {
+    doc.setFontSize(7)
+    doc.setTextColor(...GRAY)
+    doc.text(legalParts.join(' — '), MARGIN, yPos); yPos += 4.5
+    doc.setFontSize(8.5)
+    doc.setTextColor(...DARK)
+  }
 
   yPos = Math.max(yPos + 4, 88)
 
@@ -95,7 +123,7 @@ export function generateInvoicePDF(invoice, items, client, profile, settings) {
   yPos += 6
 
   // ── BLOC CLIENT ────────────────────────────────────────
-  const clientBoxH = 36
+  const clientBoxH = 40
   doc.setFillColor(...LIGHT)
   doc.roundedRect(MARGIN, yPos, 90, clientBoxH, 2, 2, 'F')
   doc.setDrawColor(...BORDER)
@@ -118,20 +146,57 @@ export function generateInvoicePDF(invoice, items, client, profile, settings) {
     client.address.split('\n').forEach((l) => { doc.text(l, MARGIN + 4, cy); cy += 4.5 })
   }
   if (client?.email) { doc.text(client.email, MARGIN + 4, cy); cy += 4.5 }
-  if (client?.phone) { doc.text(client.phone, MARGIN + 4, cy) }
+  if (client?.phone) { doc.text(client.phone, MARGIN + 4, cy); cy += 4.5 }
+  if (client?.siret) { doc.setFontSize(7.5); doc.text(`SIRET : ${client.siret}`, MARGIN + 4, cy); cy += 4.5; doc.setFontSize(8) }
+  if (client?.tva_number) { doc.setFontSize(7.5); doc.text(`TVA : ${client.tva_number}`, MARGIN + 4, cy); doc.setFontSize(8) }
 
   yPos += clientBoxH + 6
 
   // ── TABLEAU DES PRESTATIONS ────────────────────────────
-  autoTable(doc, {
-    startY: yPos,
-    head: [['Description', 'Qté', 'Prix unitaire HT', 'Total HT']],
-    body: items.map((item) => [
+  const tableHead = hasRemise
+    ? [['Description', 'Qté', 'P.U. HT', 'Remise', 'Total HT']]
+    : [['Description', 'Qté', 'Prix unitaire HT', 'Total HT']]
+
+  const tableBody = items.map((item) => {
+    const lineTotal = Number(item.quantity || 0) * Number(item.unit_price || 0)
+    const remisePct = Number(item.remise || 0)
+    const lineTotalAfter = lineTotal * (1 - remisePct / 100)
+    if (hasRemise) {
+      return [
+        item.description || '',
+        String(Number(item.quantity || 0)),
+        formatCurrencyPDF(item.unit_price),
+        remisePct > 0 ? `${remisePct} %` : '—',
+        formatCurrencyPDF(lineTotalAfter),
+      ]
+    }
+    return [
       item.description || '',
       String(Number(item.quantity || 0)),
       formatCurrencyPDF(item.unit_price),
-      formatCurrencyPDF(Number(item.quantity || 0) * Number(item.unit_price || 0)),
-    ]),
+      formatCurrencyPDF(lineTotal),
+    ]
+  })
+
+  const colStyles = hasRemise
+    ? {
+        0: { cellWidth: 85 },
+        1: { cellWidth: 13, halign: 'center' },
+        2: { cellWidth: 30, halign: 'right' },
+        3: { cellWidth: 20, halign: 'center' },
+        4: { cellWidth: 32, halign: 'right', fontStyle: 'bold' },
+      }
+    : {
+        0: { cellWidth: 100 },
+        1: { cellWidth: 15, halign: 'center' },
+        2: { cellWidth: 33, halign: 'right' },
+        3: { cellWidth: 32, halign: 'right', fontStyle: 'bold' },
+      }
+
+  autoTable(doc, {
+    startY: yPos,
+    head: tableHead,
+    body: tableBody,
     headStyles: {
       fillColor: PRIMARY,
       textColor: WHITE,
@@ -145,12 +210,7 @@ export function generateInvoicePDF(invoice, items, client, profile, settings) {
       cellPadding: { top: 3, bottom: 3, left: 3, right: 3 },
     },
     alternateRowStyles: { fillColor: [248, 249, 255] },
-    columnStyles: {
-      0: { cellWidth: COL.desc },
-      1: { cellWidth: COL.qty, halign: 'center' },
-      2: { cellWidth: COL.pu, halign: 'right' },
-      3: { cellWidth: COL.total, halign: 'right', fontStyle: 'bold' },
-    },
+    columnStyles: colStyles,
     margin: { left: MARGIN, right: MARGIN },
     styles: { lineColor: BORDER, lineWidth: 0.15, overflow: 'linebreak' },
     tableLineWidth: 0.2,
@@ -160,42 +220,86 @@ export function generateInvoicePDF(invoice, items, client, profile, settings) {
   yPos = doc.lastAutoTable.finalY + 6
 
   // ── TOTAUX ────────────────────────────────────────────
+  const remiseGlobale = Number(invoice.remise_globale || 0)
+  const subtotalBrut = Number(invoice.subtotal_brut || invoice.subtotal || 0)
+  const remiseGlobaleAmount = subtotalBrut * (remiseGlobale / 100)
+  const subtotal = Number(invoice.subtotal || 0)
+  const totBoxRows = remiseGlobale > 0 ? 5 : 3
   const totW = 78
   const totX = PAGE_W - MARGIN - totW
+  const totH = 14 + totBoxRows * 10 + 11
 
   doc.setFillColor(...LIGHT)
-  doc.roundedRect(totX, yPos, totW, 36, 2, 2, 'F')
+  doc.roundedRect(totX, yPos, totW, totH, 2, 2, 'F')
   doc.setDrawColor(...BORDER)
   doc.setLineWidth(0.2)
-  doc.roundedRect(totX, yPos, totW, 36, 2, 2, 'S')
+  doc.roundedRect(totX, yPos, totW, totH, 2, 2, 'S')
 
+  let ty = yPos + 10
   doc.setFontSize(9)
   doc.setTextColor(...GRAY)
   doc.setFont('helvetica', 'normal')
-  doc.text('Sous-total HT :', totX + 4, yPos + 10)
-  doc.text(`TVA (${invoice.tva_rate || 0} %) :`, totX + 4, yPos + 20)
 
+  doc.text('Sous-total brut HT :', totX + 4, ty)
   doc.setTextColor(...DARK)
-  doc.text(formatCurrencyPDF(invoice.subtotal || 0), totX + totW - 4, yPos + 10, { align: 'right' })
-  doc.text(formatCurrencyPDF(invoice.tva_amount || 0), totX + totW - 4, yPos + 20, { align: 'right' })
+  doc.text(formatCurrencyPDF(subtotalBrut), totX + totW - 4, ty, { align: 'right' })
+  ty += 10
+
+  if (remiseGlobale > 0) {
+    doc.setTextColor(...GRAY)
+    doc.text(`Remise globale (${remiseGlobale} %) :`, totX + 4, ty)
+    doc.setTextColor([220, 38, 38])
+    doc.text(`- ${formatCurrencyPDF(remiseGlobaleAmount)}`, totX + totW - 4, ty, { align: 'right' })
+    ty += 10
+
+    doc.setTextColor(...GRAY)
+    doc.text('Sous-total HT :', totX + 4, ty)
+    doc.setTextColor(...DARK)
+    doc.text(formatCurrencyPDF(subtotal), totX + totW - 4, ty, { align: 'right' })
+    ty += 10
+  }
+
+  doc.setTextColor(...GRAY)
+  if (isAutoEntrepreneur) {
+    doc.text('TVA :', totX + 4, ty)
+    doc.setTextColor(...GRAY)
+    doc.setFontSize(7.5)
+    doc.text('non applicable (art. 293 B)', totX + totW - 4, ty, { align: 'right' })
+    doc.setFontSize(9)
+  } else {
+    doc.text(`TVA (${invoice.tva_rate || 0} %) :`, totX + 4, ty)
+    doc.setTextColor(...DARK)
+    doc.text(formatCurrencyPDF(invoice.tva_amount || 0), totX + totW - 4, ty, { align: 'right' })
+  }
+  ty += 10
 
   doc.setFillColor(...PRIMARY)
-  doc.roundedRect(totX, yPos + 25, totW, 11, 2, 2, 'F')
+  doc.roundedRect(totX, ty, totW, 11, 2, 2, 'F')
   doc.setTextColor(...WHITE)
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(10)
-  doc.text('TOTAL TTC', totX + 5, yPos + 32.5)
-  doc.text(formatCurrencyPDF(invoice.total || 0), totX + totW - 4, yPos + 32.5, { align: 'right' })
+  doc.text(isAutoEntrepreneur ? 'TOTAL NET' : 'TOTAL TTC', totX + 5, ty + 7.5)
+  doc.text(formatCurrencyPDF(invoice.total || 0), totX + totW - 4, ty + 7.5, { align: 'right' })
 
-  yPos += 44
+  yPos = ty + 19
 
   // ── CONDITIONS DE PAIEMENT ────────────────────────────
-  const hasPayment = settings?.payment_terms || profile?.iban || settings?.bank_details
+  const hasPayment = settings?.payment_terms || profile?.iban || settings?.bank_details || invoice.payment_method
   if (hasPayment) {
     const lines = []
     if (settings?.payment_terms) lines.push(`Délai de paiement : ${settings.payment_terms}`)
+    if (invoice.payment_method) {
+      const methodLabels = {
+        virement: 'Virement bancaire', cheque: 'Chèque', carte: 'Carte bancaire',
+        especes: 'Espèces', prelevement: 'Prélèvement automatique',
+      }
+      lines.push(`Mode de paiement : ${methodLabels[invoice.payment_method] || invoice.payment_method}`)
+    }
     if (profile?.iban) lines.push(`IBAN : ${profile.iban}`)
     else if (settings?.bank_details) lines.push(settings.bank_details)
+
+    // Escompte : mention obligatoire
+    lines.push('Aucun escompte consenti pour paiement anticipé.')
 
     const boxH = 14 + lines.length * 5.5
     doc.setFillColor(239, 246, 255)
@@ -229,34 +333,65 @@ export function generateInvoicePDF(invoice, items, client, profile, settings) {
     yPos += noteLines.length * 4.5 + 5
   }
 
-  // ── PÉNALITÉS ─────────────────────────────────────────
+  // ── MENTIONS LÉGALES ──────────────────────────────────
+  const legalMentions = []
+
   if (settings?.late_fees) {
+    legalMentions.push(settings.late_fees)
+  } else {
+    legalMentions.push(
+      "En cas de retard de paiement, des pénalités de retard au taux de 3 fois le taux d'intérêt légal seront appliquées, " +
+      "ainsi qu'une indemnité forfaitaire pour frais de recouvrement de 40 €."
+    )
+  }
+
+  if (isAutoEntrepreneur) {
+    legalMentions.push('TVA non applicable, art. 293 B du CGI.')
+  }
+
+  if (profile?.insurance_mention) {
+    legalMentions.push(profile.insurance_mention)
+  }
+
+  if (legalMentions.length > 0) {
     doc.setFontSize(6.5)
     doc.setTextColor(...GRAY)
     doc.setFont('helvetica', 'normal')
-    const feeLines = doc.splitTextToSize(settings.late_fees, PAGE_W - 2 * MARGIN)
-    doc.text(feeLines, MARGIN, yPos)
+    legalMentions.forEach((mention) => {
+      const lines = doc.splitTextToSize(mention, PAGE_W - 2 * MARGIN)
+      doc.text(lines, MARGIN, yPos)
+      yPos += lines.length * 4 + 3
+    })
   }
 
   // ── PIED DE PAGE ──────────────────────────────────────
   const pageH = doc.internal.pageSize.height
   doc.setFillColor(...LIGHT)
-  doc.rect(0, pageH - 16, PAGE_W, 16, 'F')
+  doc.rect(0, pageH - 20, PAGE_W, 20, 'F')
   doc.setDrawColor(...BORDER)
   doc.setLineWidth(0.3)
-  doc.line(0, pageH - 16, PAGE_W, pageH - 16)
+  doc.line(0, pageH - 20, PAGE_W, pageH - 20)
 
   doc.setFontSize(7.5)
   doc.setTextColor(...GRAY)
   doc.setFont('helvetica', 'normal')
   doc.text(
     settings?.footer_text || 'Merci pour votre confiance.',
-    PAGE_W / 2, pageH - 8, { align: 'center' }
+    PAGE_W / 2, pageH - 12, { align: 'center' }
   )
-  if (profile?.siret)
-    doc.text(`SIRET : ${profile.siret}`, MARGIN, pageH - 4)
-  if (profile?.tva_number)
-    doc.text(`TVA : ${profile.tva_number}`, PAGE_W - MARGIN, pageH - 4, { align: 'right' })
+
+  // Ligne inférieure pied de page : mentions légales courtes
+  const footerParts = []
+  if (profile?.siret) footerParts.push(`SIRET : ${profile.siret}`)
+  if (profile?.legal_form) footerParts.push(profile.legal_form)
+  if (profile?.rcs_city && profile?.rcs_number) footerParts.push(`RCS ${profile.rcs_city} ${profile.rcs_number}`)
+  if (profile?.capital_social) footerParts.push(`Capital ${profile.capital_social} €`)
+  if (!isAutoEntrepreneur && profile?.tva_number) footerParts.push(`TVA : ${profile.tva_number}`)
+
+  if (footerParts.length > 0) {
+    doc.setFontSize(6.5)
+    doc.text(footerParts.join('  |  '), PAGE_W / 2, pageH - 5, { align: 'center' })
+  }
 
   return doc
 }
