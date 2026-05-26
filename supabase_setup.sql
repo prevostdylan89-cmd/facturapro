@@ -1,38 +1,37 @@
 -- ============================================================
--- FacturaPro — Script SQL Supabase complet
--- À exécuter dans l'éditeur SQL de votre projet Supabase
+-- FacturaPro — Script SQL Supabase (idempotent, re-exécutable)
 -- ============================================================
 
--- Extension UUID
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- ============================================================
 -- TABLE : profiles
 -- ============================================================
 CREATE TABLE IF NOT EXISTS profiles (
-  id          UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
-  full_name   TEXT,
+  id           UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
+  full_name    TEXT,
   company_name TEXT,
-  address     TEXT,
-  phone       TEXT,
-  email       TEXT,
-  logo_url    TEXT,
-  siret       TEXT,
-  tva_number  TEXT,
-  iban        TEXT,
-  created_at  TIMESTAMPTZ DEFAULT NOW()
+  address      TEXT,
+  phone        TEXT,
+  email        TEXT,
+  logo_url     TEXT,
+  siret        TEXT,
+  tva_number   TEXT,
+  iban         TEXT,
+  created_at   TIMESTAMPTZ DEFAULT NOW()
 );
 
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "profiles_select_own" ON profiles
-  FOR SELECT USING (auth.uid() = id);
+DROP POLICY IF EXISTS "profiles_select_own"    ON profiles;
+DROP POLICY IF EXISTS "profiles_insert_own"    ON profiles;
+DROP POLICY IF EXISTS "profiles_update_own"    ON profiles;
+DROP POLICY IF EXISTS "profiles_public_select" ON profiles;
 
-CREATE POLICY "profiles_insert_own" ON profiles
-  FOR INSERT WITH CHECK (auth.uid() = id);
-
-CREATE POLICY "profiles_update_own" ON profiles
-  FOR UPDATE USING (auth.uid() = id);
+CREATE POLICY "profiles_select_own"    ON profiles FOR SELECT  USING (auth.uid() = id);
+CREATE POLICY "profiles_insert_own"    ON profiles FOR INSERT  WITH CHECK (auth.uid() = id);
+CREATE POLICY "profiles_update_own"    ON profiles FOR UPDATE  USING (auth.uid() = id);
+CREATE POLICY "profiles_public_select" ON profiles FOR SELECT  USING (true);
 
 -- ============================================================
 -- TABLE : clients
@@ -50,8 +49,8 @@ CREATE TABLE IF NOT EXISTS clients (
 
 ALTER TABLE clients ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "clients_all_own" ON clients
-  FOR ALL USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "clients_all_own" ON clients;
+CREATE POLICY "clients_all_own" ON clients FOR ALL USING (auth.uid() = user_id);
 
 -- ============================================================
 -- TABLE : invoices
@@ -61,7 +60,7 @@ CREATE TABLE IF NOT EXISTS invoices (
   user_id        UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
   client_id      UUID REFERENCES clients(id) ON DELETE SET NULL,
   invoice_number TEXT NOT NULL,
-  status         TEXT DEFAULT 'draft' CHECK (status IN ('draft', 'sent', 'paid', 'overdue')),
+  status         TEXT DEFAULT 'draft' CHECK (status IN ('draft','sent','paid','overdue')),
   issue_date     DATE NOT NULL DEFAULT CURRENT_DATE,
   due_date       DATE,
   subtotal       DECIMAL(12,2) DEFAULT 0,
@@ -74,40 +73,37 @@ CREATE TABLE IF NOT EXISTS invoices (
 
 ALTER TABLE invoices ENABLE ROW LEVEL SECURITY;
 
--- Owner policy
-CREATE POLICY "invoices_all_own" ON invoices
-  FOR ALL USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "invoices_all_own"        ON invoices;
+DROP POLICY IF EXISTS "invoices_public_select"  ON invoices;
 
--- Public read (partage de factures par URL)
-CREATE POLICY "invoices_public_select" ON invoices
-  FOR SELECT USING (true);
+CREATE POLICY "invoices_all_own"       ON invoices FOR ALL    USING (auth.uid() = user_id);
+CREATE POLICY "invoices_public_select" ON invoices FOR SELECT USING (true);
 
 -- ============================================================
 -- TABLE : invoice_items
 -- ============================================================
 CREATE TABLE IF NOT EXISTS invoice_items (
-  id           UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-  invoice_id   UUID REFERENCES invoices(id) ON DELETE CASCADE NOT NULL,
-  description  TEXT NOT NULL,
-  quantity     DECIMAL(10,2) DEFAULT 1,
-  unit_price   DECIMAL(12,2) DEFAULT 0,
-  total        DECIMAL(12,2) DEFAULT 0
+  id          UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  invoice_id  UUID REFERENCES invoices(id) ON DELETE CASCADE NOT NULL,
+  description TEXT NOT NULL,
+  quantity    DECIMAL(10,2) DEFAULT 1,
+  unit_price  DECIMAL(12,2) DEFAULT 0,
+  total       DECIMAL(12,2) DEFAULT 0
 );
 
 ALTER TABLE invoice_items ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "invoice_items_own" ON invoice_items
-  FOR ALL USING (
-    EXISTS (
-      SELECT 1 FROM invoices
-      WHERE invoices.id = invoice_items.invoice_id
-        AND invoices.user_id = auth.uid()
-    )
-  );
+DROP POLICY IF EXISTS "invoice_items_own"           ON invoice_items;
+DROP POLICY IF EXISTS "invoice_items_public_select" ON invoice_items;
 
--- Public read pour les pages de partage
-CREATE POLICY "invoice_items_public_select" ON invoice_items
-  FOR SELECT USING (true);
+CREATE POLICY "invoice_items_own" ON invoice_items FOR ALL USING (
+  EXISTS (
+    SELECT 1 FROM invoices
+    WHERE invoices.id = invoice_items.invoice_id
+      AND invoices.user_id = auth.uid()
+  )
+);
+CREATE POLICY "invoice_items_public_select" ON invoice_items FOR SELECT USING (true);
 
 -- ============================================================
 -- TABLE : invoice_settings
@@ -126,16 +122,11 @@ CREATE TABLE IF NOT EXISTS invoice_settings (
 
 ALTER TABLE invoice_settings ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "invoice_settings_all_own" ON invoice_settings
-  FOR ALL USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "invoice_settings_all_own"        ON invoice_settings;
+DROP POLICY IF EXISTS "invoice_settings_public_select"  ON invoice_settings;
 
--- Public read pour les pages de partage
-CREATE POLICY "invoice_settings_public_select" ON invoice_settings
-  FOR SELECT USING (true);
-
--- Idem pour profiles (nécessaire pour la page publique)
-CREATE POLICY "profiles_public_select" ON profiles
-  FOR SELECT USING (true);
+CREATE POLICY "invoice_settings_all_own"       ON invoice_settings FOR ALL    USING (auth.uid() = user_id);
+CREATE POLICY "invoice_settings_public_select" ON invoice_settings FOR SELECT USING (true);
 
 -- ============================================================
 -- TRIGGER : création automatique du profil à l'inscription
@@ -176,9 +167,7 @@ DECLARE
   v_year     INTEGER;
   v_number   TEXT;
 BEGIN
-  SELECT * INTO v_settings
-  FROM invoice_settings
-  WHERE user_id = p_user_id;
+  SELECT * INTO v_settings FROM invoice_settings WHERE user_id = p_user_id;
 
   IF NOT FOUND THEN
     INSERT INTO invoice_settings (user_id, prefix, next_invoice_number)
@@ -200,34 +189,18 @@ END;
 $$;
 
 -- ============================================================
--- STORAGE : bucket "logos" (logos d'entreprise)
+-- STORAGE : bucket "logos"
 -- ============================================================
 INSERT INTO storage.buckets (id, name, public)
 VALUES ('logos', 'logos', true)
 ON CONFLICT (id) DO NOTHING;
 
--- Politique upload (authentifié seulement)
-CREATE POLICY "logos_upload" ON storage.objects
-  FOR INSERT
-  WITH CHECK (bucket_id = 'logos' AND auth.role() = 'authenticated');
+DROP POLICY IF EXISTS "logos_upload"      ON storage.objects;
+DROP POLICY IF EXISTS "logos_public_read" ON storage.objects;
+DROP POLICY IF EXISTS "logos_update_own"  ON storage.objects;
+DROP POLICY IF EXISTS "logos_delete_own"  ON storage.objects;
 
--- Lecture publique
-CREATE POLICY "logos_public_read" ON storage.objects
-  FOR SELECT
-  USING (bucket_id = 'logos');
-
--- Mise à jour par le propriétaire
-CREATE POLICY "logos_update_own" ON storage.objects
-  FOR UPDATE
-  USING (
-    bucket_id = 'logos'
-    AND auth.uid()::text = (storage.foldername(name))[1]
-  );
-
--- Suppression par le propriétaire
-CREATE POLICY "logos_delete_own" ON storage.objects
-  FOR DELETE
-  USING (
-    bucket_id = 'logos'
-    AND auth.uid()::text = (storage.foldername(name))[1]
-  );
+CREATE POLICY "logos_upload"      ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'logos' AND auth.role() = 'authenticated');
+CREATE POLICY "logos_public_read" ON storage.objects FOR SELECT USING (bucket_id = 'logos');
+CREATE POLICY "logos_update_own"  ON storage.objects FOR UPDATE USING (bucket_id = 'logos' AND auth.uid()::text = (storage.foldername(name))[1]);
+CREATE POLICY "logos_delete_own"  ON storage.objects FOR DELETE USING (bucket_id = 'logos' AND auth.uid()::text = (storage.foldername(name))[1]);
