@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { TrendingUp, FileText, Clock, CheckCircle, AlertTriangle, Plus, ArrowRight, AlertCircle } from 'lucide-react'
+import { TrendingUp, FileText, CheckCircle, AlertTriangle, Plus, ArrowRight, AlertCircle, Bell } from 'lucide-react'
 import { useInvoices } from '../hooks/useInvoices'
 import { useAuth } from '../hooks/useAuth'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
+import EmailModal from '../components/invoice/EmailModal'
+import { supabase } from '../lib/supabase'
 import {
   formatCurrency,
   formatDate,
@@ -113,9 +115,10 @@ function ProfileBanner({ profile, onGoToSettings }) {
 }
 
 export default function Dashboard() {
-  const { invoices, loading } = useInvoices()
+  const { invoices, loading, refetch } = useInvoices()
   const { profile } = useAuth()
   const navigate = useNavigate()
+  const [reminderModal, setReminderModal] = useState(null) // { invoice, client }
 
   const now = new Date()
   const currentMonth = now.getMonth()
@@ -149,6 +152,43 @@ export default function Dashboard() {
   }))
 
   const recent = invoices.slice(0, 5)
+
+  // Factures à relancer : envoyées ou en retard
+  const toRelance = invoices.filter((inv) => {
+    const s = getEffectiveStatus(inv)
+    return s === 'overdue' || s === 'sent'
+  }).sort((a, b) => {
+    // overdue d'abord, puis par date d'échéance la plus ancienne
+    const sa = getEffectiveStatus(a)
+    const sb = getEffectiveStatus(b)
+    if (sa === 'overdue' && sb !== 'overdue') return -1
+    if (sb === 'overdue' && sa !== 'overdue') return 1
+    return new Date(a.due_date || 0) - new Date(b.due_date || 0)
+  }).slice(0, 5)
+
+  const handleRelance = async (invoiceId) => {
+    const inv = invoices.find((i) => i.id === invoiceId)
+    if (!inv) return
+    let client = null
+    if (inv.client_id) {
+      const { data } = await supabase.from('clients').select('*').eq('id', inv.client_id).single()
+      client = data
+    }
+    setReminderModal({ invoice: inv, client })
+  }
+
+  const handleRelanceSent = async () => {
+    if (!reminderModal) return
+    await supabase
+      .from('invoices')
+      .update({
+        last_reminder_at: new Date().toISOString(),
+        reminder_count: (reminderModal.invoice.reminder_count || 0) + 1,
+      })
+      .eq('id', reminderModal.invoice.id)
+    refetch()
+    setReminderModal(null)
+  }
 
   if (loading) {
     return (
@@ -266,6 +306,86 @@ export default function Dashboard() {
           )}
         </div>
       </div>
+
+      {/* Relances */}
+      {toRelance.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 bg-orange-50 rounded-lg">
+                <Bell size={15} className="text-orange-500" />
+              </div>
+              <h2 className="text-sm font-semibold text-gray-700">Factures à relancer</h2>
+              <span className="text-xs bg-orange-100 text-orange-600 font-medium px-2 py-0.5 rounded-full">
+                {toRelance.length}
+              </span>
+            </div>
+            <button
+              onClick={() => navigate('/invoices')}
+              className="text-xs text-indigo-600 hover:text-indigo-800 flex items-center gap-1"
+            >
+              Voir toutes <ArrowRight size={12} />
+            </button>
+          </div>
+          <div className="space-y-2">
+            {toRelance.map((inv) => {
+              const status = getEffectiveStatus(inv)
+              const daysLate = status === 'overdue' && inv.due_date
+                ? Math.floor((new Date() - new Date(inv.due_date)) / 86400000)
+                : null
+              return (
+                <div
+                  key={inv.id}
+                  className="flex items-center justify-between py-2.5 px-3 rounded-lg border border-gray-100 hover:border-orange-200 hover:bg-orange-50/40 transition-colors"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={`w-2 h-2 rounded-full flex-shrink-0 ${status === 'overdue' ? 'bg-red-400' : 'bg-yellow-400'}`} />
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-gray-800 truncate">
+                        {inv.invoice_number}
+                        {daysLate !== null && (
+                          <span className="ml-2 text-xs text-red-500 font-normal">{daysLate}j de retard</span>
+                        )}
+                      </p>
+                      <p className="text-xs text-gray-500 truncate">
+                        {inv.clients?.name || '—'} · {formatCurrency(inv.total)}
+                        {inv.last_reminder_at && (
+                          <span className="ml-1.5 text-orange-400">
+                            · Relancé le {new Date(inv.last_reminder_at).toLocaleDateString('fr-FR')}
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleRelance(inv.id)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-orange-600 bg-orange-50 hover:bg-orange-100 border border-orange-200 rounded-lg transition-colors whitespace-nowrap ml-3"
+                  >
+                    <Bell size={12} />
+                    Relancer
+                    {inv.reminder_count > 0 && (
+                      <span className="bg-orange-200 text-orange-700 rounded-full px-1.5 py-0.5 text-xs leading-none">
+                        {inv.reminder_count}
+                      </span>
+                    )}
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Reminder modal */}
+      {reminderModal && (
+        <EmailModal
+          invoice={reminderModal.invoice}
+          client={reminderModal.client}
+          mode="reminder"
+          onClose={() => setReminderModal(null)}
+          onSent={handleRelanceSent}
+        />
+      )}
     </div>
   )
 }

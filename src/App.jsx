@@ -8,6 +8,7 @@ import NewInvoice from './pages/NewInvoice'
 import Clients from './pages/Clients'
 import Settings from './pages/Settings'
 import PublicInvoice from './pages/PublicInvoice'
+import PublicQuote from './pages/PublicQuote'
 import Layout from './components/layout/Layout'
 
 function Spinner() {
@@ -46,6 +47,7 @@ export default function App() {
             }
           />
           <Route path="/facture/:id" element={<PublicInvoice />} />
+          <Route path="/devis/:id" element={<PublicQuote />} />
           <Route
             path="/"
             element={

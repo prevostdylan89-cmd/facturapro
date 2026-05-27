@@ -1,20 +1,31 @@
 import { useState } from 'react'
-import { X, Mail, Send } from 'lucide-react'
+import { X, Mail, Send, Bell } from 'lucide-react'
 import Button from '../ui/Button'
+import { formatCurrency } from '../../lib/invoiceHelpers'
 
-export default function EmailModal({ invoice, client, onClose }) {
+export default function EmailModal({ invoice, client, onClose, onSent, mode = 'default' }) {
+  const isReminder = mode === 'reminder'
+  const isQuote = invoice?.type === 'quote'
   const clientEmail = client?.email || ''
   const invoiceNumber = invoice?.invoice_number || ''
+  const docLabel = isQuote ? 'devis' : 'facture'
+
+  const defaultSubject = isReminder
+    ? `Relance — Facture ${invoiceNumber} en attente de paiement`
+    : `${isQuote ? 'Devis' : 'Facture'} ${invoiceNumber}`
+
+  const defaultBody = isReminder
+    ? `Bonjour${client?.name ? ` ${client.name}` : ''},\n\nSauf erreur de notre part, nous n'avons pas encore reçu le règlement de la facture ${invoiceNumber} d'un montant de ${formatCurrency(invoice?.total)}.\n\nNous vous serions reconnaissants de bien vouloir régulariser cette situation dans les meilleurs délais.\n\nN'hésitez pas à nous contacter si vous avez la moindre question.\n\nCordialement`
+    : `Bonjour${client?.name ? ` ${client.name}` : ''},\n\nVeuillez trouver ci-joint votre ${docLabel} ${invoiceNumber}.\n\nN'hésitez pas à me contacter pour toute question.\n\nCordialement`
 
   const [to, setTo] = useState(clientEmail)
-  const [subject, setSubject] = useState(`Facture ${invoiceNumber}`)
-  const [body, setBody] = useState(
-    `Bonjour,\n\nVeuillez trouver ci-joint votre facture ${invoiceNumber}.\n\nN'hésitez pas à me contacter pour toute question.\n\nCordialement`
-  )
+  const [subject, setSubject] = useState(defaultSubject)
+  const [body, setBody] = useState(defaultBody)
 
   const handleSend = () => {
     const mailtoUrl = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
     window.open(mailtoUrl, '_blank')
+    onSent?.()
     onClose()
   }
 
@@ -24,10 +35,12 @@ export default function EmailModal({ invoice, client, onClose }) {
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 bg-indigo-50 rounded-lg text-indigo-600">
-              <Mail size={16} />
+            <div className={`p-2 rounded-lg ${isReminder ? 'bg-orange-50 text-orange-600' : 'bg-indigo-50 text-indigo-600'}`}>
+              {isReminder ? <Bell size={16} /> : <Mail size={16} />}
             </div>
-            <h2 className="text-base font-semibold text-gray-900">Envoyer par email</h2>
+            <h2 className="text-base font-semibold text-gray-900">
+              {isReminder ? 'Envoyer une relance' : 'Envoyer par email'}
+            </h2>
           </div>
           <button
             onClick={onClose}
@@ -36,6 +49,17 @@ export default function EmailModal({ invoice, client, onClose }) {
             <X size={18} />
           </button>
         </div>
+
+        {isReminder && (
+          <div className="mx-6 mt-4 px-3 py-2 bg-orange-50 border border-orange-200 rounded-lg text-xs text-orange-700">
+            Relance n°{(invoice?.reminder_count || 0) + 1}
+            {invoice?.last_reminder_at && (
+              <span className="ml-2 text-orange-500">
+                · Dernière relance : {new Date(invoice.last_reminder_at).toLocaleDateString('fr-FR')}
+              </span>
+            )}
+          </div>
+        )}
 
         {/* Body */}
         <div className="px-6 py-5 space-y-4">
@@ -49,7 +73,6 @@ export default function EmailModal({ invoice, client, onClose }) {
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
-
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Objet</label>
             <input
@@ -59,17 +82,15 @@ export default function EmailModal({ invoice, client, onClose }) {
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
-
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Message</label>
             <textarea
               value={body}
               onChange={(e) => setBody(e.target.value)}
-              rows={6}
+              rows={7}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
             />
           </div>
-
           <p className="text-xs text-gray-400">
             Ouvre votre application email. Joignez le PDF manuellement.
           </p>
@@ -78,9 +99,13 @@ export default function EmailModal({ invoice, client, onClose }) {
         {/* Footer */}
         <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-100">
           <Button variant="secondary" onClick={onClose}>Annuler</Button>
-          <Button onClick={handleSend} disabled={!to}>
+          <Button
+            onClick={handleSend}
+            disabled={!to}
+            className={isReminder ? 'bg-orange-600 hover:bg-orange-700' : ''}
+          >
             <Send size={14} className="mr-1.5" />
-            Ouvrir dans l'email
+            {isReminder ? 'Envoyer la relance' : "Ouvrir dans l'email"}
           </Button>
         </div>
       </div>

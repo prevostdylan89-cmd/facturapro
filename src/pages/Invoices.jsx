@@ -21,7 +21,7 @@ const PAGE_SIZE = 10
 
 export default function Invoices() {
   const navigate = useNavigate()
-  const { invoices, loading, deleteInvoice, duplicateInvoice, updateStatus, createCreditNote } = useInvoices('invoice')
+  const { invoices, loading, deleteInvoice, duplicateInvoice, updateStatus, createCreditNote, refetch } = useInvoices('invoice')
   const { profile } = useAuth()
 
   const [search, setSearch] = useState('')
@@ -43,6 +43,17 @@ export default function Invoices() {
 
   const handleStatusChange = async (id, status) => {
     await updateStatus(id, status)
+  }
+
+  const handleRelance = async (id) => {
+    await supabase
+      .from('invoices')
+      .update({
+        last_reminder_at: new Date().toISOString(),
+        reminder_count: (invoices.find((i) => i.id === id)?.reminder_count || 0) + 1,
+      })
+      .eq('id', id)
+    refetch()
   }
 
   const handleCreditNote = async (id) => {
@@ -170,6 +181,7 @@ export default function Invoices() {
               onStatusChange={handleStatusChange}
               onDownload={handleDownload}
               onCreateCreditNote={handleCreditNote}
+              onRelance={handleRelance}
             />
           ))}
         </div>
