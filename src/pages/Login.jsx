@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { Receipt, Eye, EyeOff } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import Button from '../components/ui/Button'
@@ -16,6 +16,7 @@ export default function Login() {
   const [serverError, setServerError] = useState('')
   const [successMsg, setSuccessMsg] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const [cguAccepted, setCguAccepted] = useState(false)
 
   const set = (field) => (e) => setForm((prev) => ({ ...prev, [field]: e.target.value }))
 
@@ -27,6 +28,8 @@ export default function Login() {
     else if (form.password.length < 6) errs.password = '6 caractères minimum'
     if (mode === 'signup' && form.password !== form.confirmPassword)
       errs.confirmPassword = 'Les mots de passe ne correspondent pas'
+    if (mode === 'signup' && !cguAccepted)
+      errs.cgu = 'Vous devez accepter les CGU pour créer un compte'
     setErrors(errs)
     return Object.keys(errs).length === 0
   }
@@ -43,7 +46,7 @@ export default function Login() {
       if (error) setServerError(error.message)
       else navigate('/dashboard')
     } else {
-      const { error } = await signUp(form.email, form.password)
+      const { error } = await signUp(form.email, form.password, new Date().toISOString())
       if (error) setServerError(error.message)
       else {
         setSuccessMsg('Compte créé ! Vérifiez votre email pour confirmer votre inscription.')
@@ -147,6 +150,40 @@ export default function Login() {
                 error={errors.confirmPassword}
                 required
               />
+            )}
+
+            {mode === 'signup' && (
+              <div>
+                <label className="flex items-start gap-2.5 cursor-pointer group">
+                  <input
+                    type="checkbox"
+                    checked={cguAccepted}
+                    onChange={(e) => setCguAccepted(e.target.checked)}
+                    className="mt-0.5 w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer flex-shrink-0"
+                  />
+                  <span className="text-sm text-gray-600 leading-snug">
+                    J'ai lu et j'accepte les{' '}
+                    <Link
+                      to="/cgu"
+                      target="_blank"
+                      className="text-indigo-600 underline hover:text-indigo-800"
+                    >
+                      Conditions Générales d'Utilisation
+                    </Link>{' '}
+                    et la{' '}
+                    <Link
+                      to="/cgu#art7"
+                      target="_blank"
+                      className="text-indigo-600 underline hover:text-indigo-800"
+                    >
+                      Politique de confidentialité
+                    </Link>
+                  </span>
+                </label>
+                {errors.cgu && (
+                  <p className="text-red-600 text-xs mt-1.5">{errors.cgu}</p>
+                )}
+              </div>
             )}
 
             <Button type="submit" loading={loading} className="w-full mt-2">

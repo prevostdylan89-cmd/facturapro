@@ -40,8 +40,15 @@ export function AuthProvider({ children }) {
     return { error }
   }
 
-  const signUp = async (email, password) => {
+  const signUp = async (email, password, cguAcceptedAt = null) => {
     const { data, error } = await supabase.auth.signUp({ email, password })
+    if (!error && data?.user && cguAcceptedAt) {
+      await supabase.from('profiles').upsert({
+        id: data.user.id,
+        cgu_accepted_at: cguAcceptedAt,
+        cgu_version: '2026-05-27',
+      })
+    }
     return { data, error }
   }
 

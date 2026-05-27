@@ -1,5 +1,5 @@
-import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, FileText, Users, Settings, Receipt, X, ClipboardList } from 'lucide-react'
+import { NavLink, Link } from 'react-router-dom'
+import { LayoutDashboard, FileText, Users, Settings, Receipt, X, ClipboardList, ShieldCheck } from 'lucide-react'
 
 const navItems = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Tableau de bord' },
@@ -65,8 +65,16 @@ export default function Sidebar({ isOpen, onClose }) {
           ))}
         </nav>
 
-        <div className="p-4 border-t border-gray-700/60">
-          <p className="text-xs text-gray-500 text-center">FacturaPro · v1.1</p>
+        <div className="p-4 border-t border-gray-700/60 space-y-2">
+          <p className="text-xs text-gray-500 text-center">FacturaPro · v1.2</p>
+          <Link
+            to="/cgu"
+            target="_blank"
+            className="flex items-center justify-center gap-1.5 text-xs text-gray-600 hover:text-gray-300 transition-colors"
+          >
+            <ShieldCheck size={12} />
+            CGU &amp; Confidentialité
+          </Link>
         </div>
       </aside>
     </>
