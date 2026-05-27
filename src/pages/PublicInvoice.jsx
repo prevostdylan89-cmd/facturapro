@@ -45,7 +45,7 @@ export default function PublicInvoice() {
   const handleDownload = async () => {
     if (!data) return
     setDownloading(true)
-    const doc = generateInvoicePDF(
+    const doc = await generateInvoicePDF(
       data.invoice,
       data.items,
       data.client,

@@ -12,32 +12,57 @@ const PAGE_W  = 210
 const MARGIN  = 15
 
 // Zone utile = 210 - 15 - 15 = 180 mm
-// Colonnes avec remise = 85 + 13 + 14 + 30 + 6 + 32 = 180 mm
-// Colonnes sans remise = 100 + 15 + 33 + 32 = 180 mm
 
-export function generateInvoicePDF(invoice, items, client, profile, settings) {
+async function loadImageAsDataURL(url) {
+  const res = await fetch(url)
+  const blob = await res.blob()
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onloadend = () => resolve(reader.result)
+    reader.onerror = reject
+    reader.readAsDataURL(blob)
+  })
+}
+
+export async function generateInvoicePDF(invoice, items, client, profile, settings) {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
   const isAutoEntrepreneur = profile?.is_auto_entrepreneur === true
   const hasRemise = items.some((i) => Number(i.remise || 0) > 0) || Number(invoice.remise_globale || 0) > 0
   const docLabel = invoice.type === 'quote' ? 'DEVIS' : invoice.type === 'credit_note' ? 'AVOIR' : 'FACTURE'
 
+  // Précharger le logo
+  let logoData = null
+  if (profile?.logo_url) {
+    try { logoData = await loadImageAsDataURL(profile.logo_url) } catch (_) {}
+  }
+
   // ── HEADER ─────────────────────────────────────────────
   doc.setFillColor(...PRIMARY)
   doc.rect(0, 0, PAGE_W, 45, 'F')
 
+  // Logo (si présent) — carré blanc arrondi en haut à gauche
+  const logoSize = 32
+  if (logoData) {
+    doc.setFillColor(...WHITE)
+    doc.roundedRect(MARGIN, 6, logoSize, logoSize, 3, 3, 'F')
+    doc.addImage(logoData, MARGIN + 1, 7, logoSize - 2, logoSize - 2)
+  }
+
+  const textX = logoData ? MARGIN + logoSize + 5 : MARGIN
+
   doc.setTextColor(...WHITE)
-  doc.setFontSize(18)
+  doc.setFontSize(16)
   doc.setFont('helvetica', 'bold')
-  doc.text(profile?.company_name || profile?.full_name || 'Mon Entreprise', MARGIN, 18)
+  doc.text(profile?.company_name || profile?.full_name || 'Mon Entreprise', textX, 18)
 
   if (profile?.address) {
     doc.setFontSize(8)
     doc.setFont('helvetica', 'normal')
-    doc.text(profile.address.split('\n')[0], MARGIN, 27)
+    doc.text(profile.address.split('\n')[0], textX, 27)
   }
   if (profile?.email) {
     doc.setFontSize(8)
-    doc.text(profile.email, MARGIN, 34)
+    doc.text(profile.email, textX, 34)
   }
 
   // Type de document (droite)

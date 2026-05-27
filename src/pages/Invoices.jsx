@@ -70,7 +70,7 @@ export default function Invoices() {
         .eq('user_id', invoice.user_id)
         .single()
 
-      const doc = generateInvoicePDF(invoice, items || [], client, profile, settings)
+      const doc = await generateInvoicePDF(invoice, items || [], client, profile, settings)
       downloadPDF(doc, invoice)
     } catch (e) {
       alert('Erreur lors de la génération du PDF')

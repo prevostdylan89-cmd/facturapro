@@ -71,7 +71,7 @@ export default function Quotes() {
         .eq('user_id', quote.user_id)
         .single()
 
-      const doc = generateInvoicePDF(quote, items || [], client, profile, settings)
+      const doc = await generateInvoicePDF(quote, items || [], client, profile, settings)
       downloadPDF(doc, quote)
     } catch (e) {
       alert('Erreur lors de la génération du PDF')
